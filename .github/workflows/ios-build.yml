@@ -3,9 +3,9 @@ name: Build C Library for iOS
 on:
     workflow_dispatch:
     push:
-        branches: [ "main" ]
+        branches: [ "master" ]
     pull_request:
-        branches: [ "main" ]
+        branches: [ "master" ]
 
 jobs:
 
@@ -20,15 +20,29 @@ jobs:
         brew install cmake
         brew install llvm
         
+    - name: Setup environment
+      run: |
+        echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> $GITHUB_ENV
+        echo 'export LDFLAGS="-L/opt/homebrew/opt/llvm/lib/c++ -L/opt/homebrew/opt/llvm/lib -lunwind"' >> $GITHUB_ENV
+        echo 'export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"' >> $GITHUB_ENV
+
+    - name: Download iOS toolchain
+      run: |
+        curl -L https://raw.githubusercontent.com/leetal/ios-cmake/master/ios.toolchain.cmake -o ios.toolchain.cmake
+
     - name: Build C Library for iOS
       run: |
         mkdir -p build && cd build
-        cmake -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/cmake/ios.toolchain.cmake -DIOS_PLATFORM=OS64 ..
+        cmake -DCMAKE_TOOLCHAIN_FILE=../ios.toolchain.cmake -DPLATFORM=OS64 ..
         make
-        lipo -create libMyLib.a -output libMyLib.a
+        
+    - name: Create universal binary
+      run: |
+        cd build
+        lipo -create libfvad.a -output libfvad_universal.a
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
       with:
-        name: libMyLib.a
-        path: build/libMyLib.a
+        name: libfvad_universal.a
+        path: build/libfvad_universal.a
