@@ -6,10 +6,10 @@ on:
   workflow_dispatch:  # Allows manual triggering
 
 env:
-  UPSTREAM_REPO: https://github.com/dpirch/libfvad.git  # Replace with the actual upstream repo URL
-  DEPLOY_BRANCH: release  # The branch to upload the built file to
-  DEPLOY_FOLDER: builds  # The folder in the deploy branch to upload to
-  PACKAGE_NAME: libfvad_ios  # Name of the package (without extension)
+  UPSTREAM_REPO: https://github.com/dpirch/libfvad.git
+  DEPLOY_BRANCH: release
+  DEPLOY_FOLDER: builds
+  PACKAGE_NAME: libfvad_ios
 
 jobs:
   sync-build-and-deploy:
@@ -30,9 +30,11 @@ jobs:
       run: |
         git remote add upstream ${{ env.UPSTREAM_REPO }}
         git fetch upstream
-        git checkout master
+        git checkout -b temp-branch
+        git branch -D master || true
+        git checkout -b master upstream/master
         git merge upstream/master
-        git push origin master
+        git push -f origin master
       
     - name: Check for updates
       id: check_updates
