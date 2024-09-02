@@ -34,12 +34,23 @@ jobs:
       run: |
         mkdir -p build && cd build
         cmake -DCMAKE_TOOLCHAIN_FILE=../ios.toolchain.cmake -DPLATFORM=OS64 ..
-        make
+        make VERBOSE=1
+        
+    - name: Debug - List build directory contents
+      run: |
+        cd build
+        ls -la
+        find . -name "*.a"
         
     - name: Create universal binary
       run: |
         cd build
-        lipo -create libfvad.a -output libfvad_universal.a
+        LIB_FILE=$(find . -name "*.a" | head -n 1)
+        if [ -z "$LIB_FILE" ]; then
+        echo "No .a file found in build directory"
+        exit 1
+        fi
+        lipo -create "$LIB_FILE" -output libfvad_universal.a
         
     - name: Upload Artifact
       uses: actions/upload-artifact@v2
