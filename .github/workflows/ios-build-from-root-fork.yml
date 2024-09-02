@@ -17,7 +17,7 @@ jobs:
     
     steps:
     - name: Checkout forked repository
-      uses: actions/checkout@v2
+      uses: actions/checkout@v3
       with:
         fetch-depth: 0  # Fetch all history for all branches and tags
         
@@ -41,10 +41,10 @@ jobs:
       run: |
         if git diff --quiet HEAD@{1} HEAD; then
           echo "No updates from upstream. Skipping build."
-          echo "::set-output name=updated::false"
+          echo "updated=false" >> $GITHUB_OUTPUT
         else
           echo "Updates detected. Proceeding with build."
-          echo "::set-output name=updated::true"
+          echo "updated=true" >> $GITHUB_OUTPUT
         fi
         
     - name: Install Dependencies
