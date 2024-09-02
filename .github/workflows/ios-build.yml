@@ -1,71 +1,34 @@
-name: iOS C Library Build
+name: Build C Library for iOS
 
 on:
     workflow_dispatch:
-    schedule:
-        - cron: "5 0 * * *"
-#   push:
-#     branches:
-#       - master
+    push:
+        branches: [ "main" ]
+    pull_request:
+        branches: [ "main" ]
 
 jobs:
 
-  build-ios-library:
+  build-ios:
     runs-on: macos-latest
     
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
-      
+    - uses: actions/checkout@v2
+    
+    - name: Install Dependencies
+      run: |
+        brew install cmake
+        brew install llvm
+        
     - name: Build C Library for iOS
       run: |
-        # 配置编译环境
-        export CC=/usr/bin/clang
-        export CXX=/usr/bin/clang++
-        export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+        mkdir -p build && cd build
+        cmake -DCMAKE_TOOLCHAIN_FILE=${{github.workspace}}/cmake/ios.toolchain.cmake -DIOS_PLATFORM=OS64 ..
+        make
+        lipo -create libMyLib.a -output libMyLib.a
         
-        # 配置编译参数
-        export MIN_IOS_VERSION=11.0
-        export ARCHS="arm64 x86_64"
-        export OUTPUT_DIR="build/ios"
-        
-        # 创建输出目录
-        mkdir -p $OUTPUT_DIR
-        
-        # 编译库文件
-        for ARCH in $ARCHS; do
-          if [ "$ARCH" == "arm64" ]; then
-            PLATFORM="iphoneos"
-          else
-            PLATFORM="iphonesimulator"
-          fi
-          
-          echo "Building for $ARCH..."
-          
-          # 配置编译标志
-          CFLAGS="-arch $ARCH -isysroot $(xcrun -sdk $PLATFORM --show-sdk-path) -mios-version-min=$MIN_IOS_VERSION"
-          
-          # 编译静态库
-          ./configure --host=$ARCH-apple-darwin --prefix="$OUTPUT_DIR/$ARCH" --enable-static --disable-shared
-          make clean
-          make
-          make install
-          
-          # 检查是否成功生成静态库
-          if [ ! -f "$OUTPUT_DIR/$ARCH/lib/libmylib.a" ]; then
-            echo "Error: Failed to create static library for $ARCH"
-            exit 1
-          fi
-        done
-        
-        # 创建通用静态库
-        echo "Creating universal static library..."
-        mkdir -p "$OUTPUT_DIR/universal/lib"
-        lipo -create "$OUTPUT_DIR/arm64/lib/libmylib.a" "$OUTPUT_DIR/x86_64/lib/libmylib.a" -output "$OUTPUT_DIR/universal/lib/libmylib.a"
-        
-        # 上传构建结果
-        - name: Upload Artifact
-          uses: actions/upload-artifact@v2
-          with:
-            name: ios-library
-            path: ${{ github.workspace }}/build/ios/universal
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: libMyLib.a
+        path: build/libMyLib.a
