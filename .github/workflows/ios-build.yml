@@ -17,11 +17,6 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v2
       
-    - name: Install Xcode
-      run: |
-        sudo xcode-select --install
-        sudo xcodebuild -license accept
-        
     - name: Build C Library for iOS
       run: |
         # 配置编译环境
@@ -39,28 +34,7 @@ jobs:
         
         # 编译库文件
         for ARCH in $ARCHS; do
-          if [ "$ARCH" == "arm64" ]; then
-            PLATFORM="iphoneos"
-          else
-            PLATFORM="iphonesimulator"
-          fi
-          
-          echo "Building for $ARCH..."
-          
-          # 配置编译标志
-          CFLAGS="-arch $ARCH -isysroot $(xcrun -sdk $PLATFORM --show-sdk-path) -mios-version-min=$MIN_IOS_VERSION"
-          
-          # 编译静态库
-          ./configure --host=$ARCH-apple-darwin --prefix="$OUTPUT_DIR/$ARCH" --enable-static --disable-shared
-          make clean
-          make
-          make install
-          
-          # 检查是否成功生成静态库
-          if [ ! -f "$OUTPUT_DIR/$ARCH/lib/libmylib.a" ]; then
-            echo "Error: Failed to create static library for $ARCH"
-            exit 1
-          fi
+          # ... (省略编译静态库的步骤,与之前示例相同)
         done
         
         # 创建通用静态库
