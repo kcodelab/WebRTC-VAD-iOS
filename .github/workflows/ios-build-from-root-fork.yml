@@ -83,37 +83,23 @@ jobs:
         fi
         lipo -create "$LIB_FILE" -output libfvad_universal.a
         
-    - name: Package library and headers
+    - name: Prepare files for release and repository
       if: steps.check_updates.outputs.updated == 'true'
       run: |
-        mkdir -p ${{ env.PACKAGE_NAME }}/lib
-        mkdir -p ${{ env.PACKAGE_NAME }}/include
-        cp build/libfvad_universal.a ${{ env.PACKAGE_NAME }}/lib/
-        cp include/*.h ${{ env.PACKAGE_NAME }}/include/
+        mkdir -p ${{ env.PACKAGE_NAME }}
+        cp build/libfvad_universal.a ${{ env.PACKAGE_NAME }}/
+        cp include/*.h ${{ env.PACKAGE_NAME }}/
         zip -r ${{ env.PACKAGE_NAME }}.zip ${{ env.PACKAGE_NAME }}
         
     - name: Create Release
       if: steps.check_updates.outputs.updated == 'true'
-      id: create_release
-      uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: v${{ github.run_number }}
-        release_name: Release ${{ github.run_number }}
-        draft: false
-        prerelease: false
-        
-    - name: Upload Release Asset
-      if: steps.check_updates.outputs.updated == 'true'
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./${{ env.PACKAGE_NAME }}.zip
-        asset_name: ${{ env.PACKAGE_NAME }}.zip
-        asset_content_type: application/zip
+      run: |
+        gh release create v${{ github.run_number }} \
+          --title "Release ${{ github.run_number }}" \
+          --notes "Automated release for build ${{ github.run_number }}" \
+          ${{ env.PACKAGE_NAME }}.zip
         
     - name: Checkout deploy branch
       if: steps.check_updates.outputs.updated == 'true'
@@ -122,15 +108,15 @@ jobs:
         git checkout ${{ env.DEPLOY_BRANCH }} || git checkout -b ${{ env.DEPLOY_BRANCH }}
         git pull origin ${{ env.DEPLOY_BRANCH }} || true
         
-    - name: Copy built package to deploy folder
+    - name: Copy files to deploy folder
       if: steps.check_updates.outputs.updated == 'true'
       run: |
-        mkdir -p ${{ env.DEPLOY_FOLDER }}
-        cp ${{ env.PACKAGE_NAME }}.zip ${{ env.DEPLOY_FOLDER }}/
+        mkdir -p ${{ env.DEPLOY_FOLDER }}/${{ env.PACKAGE_NAME }}
+        cp ${{ env.PACKAGE_NAME }}/* ${{ env.DEPLOY_FOLDER }}/${{ env.PACKAGE_NAME }}/
         
     - name: Commit and push to deploy branch
       if: steps.check_updates.outputs.updated == 'true'
       run: |
-        git add ${{ env.DEPLOY_FOLDER }}/${{ env.PACKAGE_NAME }}.zip
-        git commit -m "Update ${{ env.PACKAGE_NAME }}.zip from build ${{ github.run_number }}"
+        git add ${{ env.DEPLOY_FOLDER }}/${{ env.PACKAGE_NAME }}
+        git commit -m "Update ${{ env.PACKAGE_NAME }} from build ${{ github.run_number }}"
         git push origin ${{ env.DEPLOY_BRANCH }}
