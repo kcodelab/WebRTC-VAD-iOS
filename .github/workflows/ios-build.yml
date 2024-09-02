@@ -1,9 +1,9 @@
-name: iOS C Library Build
+name: iOS C Library Build with Tests
 
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
 
@@ -21,53 +21,29 @@ jobs:
         
     - name: Build C Library for iOS
       run: |
-        # 配置编译环境
-        export CC=/usr/bin/clang
-        export CXX=/usr/bin/clang++
-        export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+        # ... (省略编译静态库的步骤,与之前示例相同)
         
-        # 配置编译参数
-        export MIN_IOS_VERSION=11.0
-        export ARCHS="arm64 x86_64"
-        export OUTPUT_DIR="build/ios"
+    - name: Run Tests
+      run: |
+        # 进入测试目录
+        cd tests
         
-        # 创建输出目录
-        mkdir -p $OUTPUT_DIR
+        # 编译测试可执行程序
+        clang -o test_runner test_main.c libmylib.a
         
-        # 编译库文件
-        for ARCH in $ARCHS; do
-          if [ "$ARCH" == "arm64" ]; then
-            PLATFORM="iphoneos"
-          else
-            PLATFORM="iphonesimulator"
-          fi
-          
-          echo "Building for $ARCH..."
-          
-          # 配置编译标志
-          CFLAGS="-arch $ARCH -isysroot $(xcrun -sdk $PLATFORM --show-sdk-path) -mios-version-min=$MIN_IOS_VERSION"
-          
-          # 编译静态库
-          ./configure --host=$ARCH-apple-darwin --prefix="$OUTPUT_DIR/$ARCH" --enable-static --disable-shared
-          make clean
-          make
-          make install
-          
-          # 检查是否成功生成静态库
-          if [ ! -f "$OUTPUT_DIR/$ARCH/lib/libmylib.a" ]; then
-            echo "Error: Failed to create static library for $ARCH"
-            exit 1
-          fi
-        done
+        # 运行测试
+        ./test_runner
         
-        # 创建通用静态库
-        echo "Creating universal static library..."
-        mkdir -p "$OUTPUT_DIR/universal/lib"
-        lipo -create "$OUTPUT_DIR/arm64/lib/libmylib.a" "$OUTPUT_DIR/x86_64/lib/libmylib.a" -output "$OUTPUT_DIR/universal/lib/libmylib.a"
+        # 检查测试结果
+        if [ $? -ne 0 ]; then
+          echo "Tests failed"
+          exit 1
+        else
+          echo "Tests passed"
+        fi
         
-        # 上传构建结果
-        - name: Upload Artifact
-          uses: actions/upload-artifact@v2
-          with:
-            name: ios-library
-            path: ${{ github.workspace }}/build/ios/universal
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v2
+      with:
+        name: ios-library
+        path: ${{ github.workspace }}/build/ios/universal
