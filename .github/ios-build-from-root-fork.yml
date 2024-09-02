@@ -1,0 +1,134 @@
+name: Auto-sync, Build, and Deploy C Library for iOS
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Runs at 2 AM UTC every day
+  workflow_dispatch:  # Allows manual triggering
+
+env:
+  UPSTREAM_REPO: https://github.com/dpirch/libfvad.git  # Replace with the actual upstream repo URL
+  DEPLOY_BRANCH: release  # The branch to upload the built file to
+  DEPLOY_FOLDER: builds  # The folder in the deploy branch to upload to
+  PACKAGE_NAME: libfvad_ios  # Name of the package (without extension)
+
+jobs:
+  sync-build-and-deploy:
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout forked repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0  # Fetch all history for all branches and tags
+        
+    - name: Configure Git
+      run: |
+        git config user.name github-actions
+        git config user.email github-actions@github.com
+        
+    - name: Sync with upstream
+      run: |
+        git remote add upstream ${{ env.UPSTREAM_REPO }}
+        git fetch upstream
+        git checkout main
+        git merge upstream/main
+        git push origin main
+      
+    - name: Check for updates
+      id: check_updates
+      run: |
+        if git diff --quiet HEAD@{1} HEAD; then
+          echo "No updates from upstream. Skipping build."
+          echo "::set-output name=updated::false"
+        else
+          echo "Updates detected. Proceeding with build."
+          echo "::set-output name=updated::true"
+        fi
+        
+    - name: Install Dependencies
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        brew install cmake
+        brew install llvm
+        
+    - name: Setup environment
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> $GITHUB_ENV
+        echo 'export LDFLAGS="-L/opt/homebrew/opt/llvm/lib/c++ -L/opt/homebrew/opt/llvm/lib -lunwind"' >> $GITHUB_ENV
+        echo 'export CPPFLAGS="-I/opt/homebrew/opt/llvm/include"' >> $GITHUB_ENV
+
+    - name: Download iOS toolchain
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        curl -L https://raw.githubusercontent.com/leetal/ios-cmake/master/ios.toolchain.cmake -o ios.toolchain.cmake
+
+    - name: Build C Library for iOS
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        mkdir -p build && cd build
+        cmake -DCMAKE_TOOLCHAIN_FILE=../ios.toolchain.cmake -DPLATFORM=OS64 ..
+        make VERBOSE=1
+        
+    - name: Create universal binary
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        cd build
+        LIB_FILE=$(find . -name "*.a" | head -n 1)
+        if [ -z "$LIB_FILE" ]; then
+          echo "No .a file found in build directory"
+          exit 1
+        fi
+        lipo -create "$LIB_FILE" -output libfvad_universal.a
+        
+    - name: Package library and headers
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        mkdir -p ${{ env.PACKAGE_NAME }}/lib
+        mkdir -p ${{ env.PACKAGE_NAME }}/include
+        cp build/libfvad_universal.a ${{ env.PACKAGE_NAME }}/lib/
+        cp include/*.h ${{ env.PACKAGE_NAME }}/include/
+        zip -r ${{ env.PACKAGE_NAME }}.zip ${{ env.PACKAGE_NAME }}
+        
+    - name: Create Release
+      if: steps.check_updates.outputs.updated == 'true'
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release ${{ github.run_number }}
+        draft: false
+        prerelease: false
+        
+    - name: Upload Release Asset
+      if: steps.check_updates.outputs.updated == 'true'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./${{ env.PACKAGE_NAME }}.zip
+        asset_name: ${{ env.PACKAGE_NAME }}.zip
+        asset_content_type: application/zip
+        
+    - name: Checkout deploy branch
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        git fetch origin
+        git checkout ${{ env.DEPLOY_BRANCH }} || git checkout -b ${{ env.DEPLOY_BRANCH }}
+        git pull origin ${{ env.DEPLOY_BRANCH }} || true
+        
+    - name: Copy built package to deploy folder
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        mkdir -p ${{ env.DEPLOY_FOLDER }}
+        cp ${{ env.PACKAGE_NAME }}.zip ${{ env.DEPLOY_FOLDER }}/
+        
+    - name: Commit and push to deploy branch
+      if: steps.check_updates.outputs.updated == 'true'
+      run: |
+        git add ${{ env.DEPLOY_FOLDER }}/${{ env.PACKAGE_NAME }}.zip
+        git commit -m "Update ${{ env.PACKAGE_NAME }}.zip from build ${{ github.run_number }}"
+        git push origin ${{ env.DEPLOY_BRANCH }}
