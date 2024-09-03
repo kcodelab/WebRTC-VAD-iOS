@@ -94,15 +94,15 @@ jobs:
     - name: Create Release
       if: steps.check_updates.outputs.updated == 'true'
       env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-          # Ensure we're on the main branch of the forked repo
-          git checkout main
-          # Create the release in the current (forked) repository
-          gh release create v${{ github.run_number }} \
-            --title "Release ${{ github.run_number }}" \
-            --notes "Automated release for build ${{ github.run_number }}" \
-            ${{ env.PACKAGE_NAME }}.zip
+        # Ensure we're on the default branch of the forked repo
+        git checkout release
+        # Create the release in the current (forked) repository
+        gh release create v${{ github.run_number }} \
+          --title "Release ${{ github.run_number }}" \
+          --notes "Automated release for build ${{ github.run_number }}" \
+          ${{ env.PACKAGE_NAME }}.zip
         
     - name: Checkout deploy branch
       if: steps.check_updates.outputs.updated == 'true'
