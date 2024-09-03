@@ -24,8 +24,15 @@ jobs:
     - name: Configure Git
       run: |
         git config user.name github-actions
-        git config user.email github-actions@github.com
+        git config user.email github-actions@github.co
         
+    - name: Determine default branch
+      id: default_branch
+      run: |
+        DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+        echo "Default branch is $DEFAULT_BRANCH"
+        echo "branch=$DEFAULT_BRANCH" >> $GITHUB_OUTPUT
+
     - name: Sync with upstream
       run: |
         git remote add upstream ${{ env.UPSTREAM_REPO }}
@@ -82,7 +89,7 @@ jobs:
           exit 1
         fi
         lipo -create "$LIB_FILE" -output libfvad_universal.a
-        
+
     - name: Prepare files for release and repository
       if: steps.check_updates.outputs.updated == 'true'
       run: |
@@ -90,16 +97,17 @@ jobs:
         cp build/libfvad_universal.a ${{ env.PACKAGE_NAME }}/
         cp include/*.h ${{ env.PACKAGE_NAME }}/
         zip -r ${{ env.PACKAGE_NAME }}.zip ${{ env.PACKAGE_NAME }}
-        
+
     - name: Create Release
       if: steps.check_updates.outputs.updated == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Ensure we're on the default branch of the forked repo
-        git checkout master
+        git checkout ${{ steps.default_branch.outputs.branch }}
         # Create the release in the current (forked) repository
         gh release create v${{ github.run_number }} \
+          --repo ${{ github.repository }} \
           --title "Release ${{ github.run_number }}" \
           --notes "Automated release for build ${{ github.run_number }}" \
           ${{ env.PACKAGE_NAME }}.zip
