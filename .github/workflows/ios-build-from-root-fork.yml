@@ -97,7 +97,7 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         # Ensure we're on the default branch of the forked repo
-        git checkout release
+        git checkout master
         # Create the release in the current (forked) repository
         gh release create v${{ github.run_number }} \
           --title "Release ${{ github.run_number }}" \
