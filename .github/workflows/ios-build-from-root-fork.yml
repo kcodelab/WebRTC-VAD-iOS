@@ -1,8 +1,8 @@
 name: Auto-sync, Build, and Deploy C Library for iOS
 
 on:
-  schedule:
-    - cron: '0 2 * * *'  # Runs at 2 AM UTC every day
+  repository_dispatch:
+    types: [upstream_updated]
   workflow_dispatch:  # Allows manual triggering
 
 env:
